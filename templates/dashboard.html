@@ -1,0 +1,431 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+<style>
+    @media print {
+        nav, .print\:hidden { display: none !important; }
+        body { background-color: white !important; }
+        .shadow-sm, .shadow-md, .shadow-2xl { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+        @page { size: landscape; margin: 1cm; }
+    }
+</style>
+
+<div x-data="{
+    openTambah: false,
+    openModalExport: false,
+    search: '',
+    filterStatus: 'all',
+    tglBaru: '',
+    jamBaru: '',
+
+    // State khusus untuk Custom Export
+    expStatus: 'all',
+    expTipe: 'all',
+    expTglMulai: '',
+    expTglAkhir: ''
+}">
+
+    <div class="hidden print:block mb-6 text-center">
+        <h1 class="text-2xl font-bold text-gray-900">Laporan Jadwal Implementasi Klinik</h1>
+        <p class="text-gray-500 font-semibold mt-1">SBU - teraMedikCE</p>
+        <hr class="mt-4 border-gray-300">
+    </div>
+
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-5 print:hidden">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Jadwal Training</h1>
+            <p class="text-gray-500 text-sm mt-1 sm:mt-2">Pantau dan kelola jadwal implementasi klinik klien.</p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <select x-model="filterStatus"
+                    class="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 outline-none transition-all focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 shadow-sm cursor-pointer hover:bg-gray-50 w-full sm:w-auto">
+                <option value="all">Semua Status</option>
+                <option value="pending">⏳ Menunggu (Pending)</option>
+                <option value="selesai">✅ Selesai (Done)</option>
+            </select>
+
+            <div class="relative w-full sm:w-56">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fas fa-search text-gray-400 text-sm"></i>
+                </div>
+                <input x-model="search" type="text" placeholder="Cari nama klinik..."
+                       class="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 w-full outline-none transition-all focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 placeholder-gray-400 shadow-sm">
+            </div>
+
+            <button @click="openModalExport = true" class="w-full sm:w-auto bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2">
+                <i class="fas fa-file-export text-gray-400"></i> Export
+            </button>
+
+            <button @click="openTambah = true" class="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                <i class="fas fa-plus text-teal-100"></i> Jadwal
+            </button>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse whitespace-nowrap min-w-max">
+                <thead>
+                    <tr class="bg-gray-50/80 border-b border-gray-200">
+                        <th class="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Klinik & Lokasi</th>
+                        <th class="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Informasi PIC</th>
+                        <th class="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Waktu Training</th>
+                        <th class="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
+                        <th class="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-center print:hidden">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100" id="data-body-export">
+                    {% for j in semua_jadwal %}
+
+                    <tr x-data="{
+                            openEdit: false,
+                            openHapus: false,
+                            tglEdit: '{{ j.tanggal_training.strftime('%Y-%m-%d') }}',
+                            jamEdit: '{{ j.tanggal_training.strftime('%H:%M') }}'
+                        }"
+                        x-show="(search === '' || '{{ j.nama_klinik }}'.toLowerCase().includes(search.toLowerCase())) && (filterStatus === 'all' || filterStatus === '{{ 'selesai' if j.status_selesai else 'pending' }}')"
+                        class="hover:bg-teal-50/30 transition-colors group row-data-item"
+                        data-status="{{ 'selesai' if j.status_selesai else 'pending' }}"
+                        data-tipe="{{ j.tipe_training | lower }}"
+                        data-tanggal="{{ j.tanggal_training.strftime('%Y-%m-%d') }}">
+
+                        <td class="py-4 px-6 col-export">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-800 val-klinik">{{ j.nama_klinik }}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-100 val-paket">{{ j.paket }}</span>
+                                {% if j.tipe_training == 'Online' %}
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 val-tipe">Online</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-600 border border-orange-200 val-tipe">Onsite</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1 truncate max-w-xs val-alamat" title="{{ j.alamat }}">
+                                <i class="fas fa-map-marker-alt text-gray-400 mr-1"></i> {{ j.alamat }}
+                            </div>
+                        </td>
+
+                        <td class="py-4 px-6 col-export">
+                            <div class="text-sm text-gray-700 font-medium val-pic">{{ j.nama_pic }}</div>
+                            <div class="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 val-hp">
+                                <i class="fas fa-phone-alt text-[10px] text-teal-600"></i> {{ j.no_hp }}
+                            </div>
+                        </td>
+
+                        <td class="py-4 px-6 col-export">
+                            <div class="text-sm font-semibold text-gray-700 val-tgl">{{ j.tanggal_training.strftime('%d %b %Y') }}</div>
+                            <div class="text-xs text-gray-500 mt-0.5 val-jam"><i class="far fa-clock text-[10px] mr-1"></i>{{ j.tanggal_training.strftime('%H:%M') }} WIB</div>
+                        </td>
+
+                        <td class="py-4 px-6 text-center col-export">
+                            <a href="{{ url_for('toggle_status', id=j.id) }}"
+                               class="inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-bold border transition-all print:border-none print:p-0
+                                      {{ 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100' if j.status_selesai else 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' }}">
+                                <span class="val-status">{% if j.status_selesai %}Selesai{% else %}Pending{% endif %}</span>
+                            </a>
+                        </td>
+
+                        <td class="py-4 px-6 text-center print:hidden">
+                            <div class="flex items-center justify-center gap-2">
+                                <button @click="openEdit = true" class="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button @click="openHapus = true" class="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+
+                            <template x-teleport="body">
+                                <div x-show="openEdit" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm overflow-y-auto">
+                                    <div @click.away="openEdit = false" class="bg-white p-6 sm:p-8 rounded-2xl w-full max-w-md shadow-2xl text-left transform transition-all whitespace-normal my-8">
+                                        <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                                            <h2 class="text-lg font-bold text-gray-800">Edit Jadwal</h2>
+                                            <button @click="openEdit = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-lg"></i></button>
+                                        </div>
+
+                                        <form action="{{ url_for('edit_jadwal', id=j.id) }}" method="POST" class="space-y-4">
+                                            <div>
+                                                <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Nama Klinik</label>
+                                                <input type="text" name="nama_klinik" value="{{ j.nama_klinik }}" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all">
+                                            </div>
+                                            <div>
+                                                <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Paket Layanan</label>
+                                                <select name="paket" required class="w-full p-3 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all">
+                                                    <option value="Basic" {% if j.paket == 'Basic' %}selected{% endif %}>Basic</option>
+                                                    <option value="Standard" {% if j.paket == 'Standard' %}selected{% endif %}>Standard</option>
+                                                    <option value="Ultimate" {% if j.paket == 'Ultimate' %}selected{% endif %}>Ultimate</option>
+                                                </select>
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Nama PIC</label>
+                                                    <input type="text" name="nama_pic" value="{{ j.nama_pic }}" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all">
+                                                </div>
+                                                <div>
+                                                    <label class="text-sm font-semibold text-gray-700 mb-1.5 block">No. WhatsApp</label>
+                                                    <input type="text" name="no_hp" value="{{ j.no_hp }}" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all">
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Tipe Pelaksanaan</label>
+                                                <select name="tipe_training" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-700 bg-white">
+                                                    <option value="Onsite" {% if j.tipe_training == 'Onsite' %}selected{% endif %}>🏢 Onsite (Kunjungan Langsung)</option>
+                                                    <option value="Online" {% if j.tipe_training == 'Online' %}selected{% endif %}>💻 Online (Remote / Zoom)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Alamat / Link Meeting</label>
+                                                <textarea name="alamat" rows="2" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all resize-none">{{ j.alamat }}</textarea>
+                                            </div>
+
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Tanggal</label>
+                                                    <input type="date" x-model="tglEdit" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-600">
+                                                </div>
+                                                <div>
+                                                    <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Jam Training</label>
+                                                    <input type="time" x-model="jamEdit" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-600">
+                                                </div>
+                                            </div>
+                                            <input type="hidden" name="tanggal_training" :value="tglEdit + 'T' + jamEdit">
+
+                                            <div class="flex gap-3 pt-5 mt-2">
+                                                <button type="button" @click="openEdit = false" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Batal</button>
+                                                <button type="submit" class="flex-1 py-3 text-sm bg-teal-600 text-white rounded-xl font-bold shadow-sm hover:bg-teal-700 hover:shadow-md transition-all">Update Data</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-teleport="body">
+                                <div x-show="openHapus" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+                                    <div @click.away="openHapus = false" class="bg-white p-6 sm:p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center transform transition-all whitespace-normal">
+                                        <div class="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-5 border-4 border-white shadow-sm">
+                                            <i class="fas fa-trash-alt text-2xl text-rose-500"></i>
+                                        </div>
+                                        <h2 class="text-xl font-bold text-gray-800 mb-2">Hapus Jadwal?</h2>
+                                        <p class="text-sm text-gray-500 mb-8 leading-relaxed">Anda yakin ingin menghapus jadwal training klinik <b class="text-gray-800">{{ j.nama_klinik }}</b>? Data yang dihapus tidak dapat dikembalikan.</p>
+
+                                        <div class="flex gap-3">
+                                            <button @click="openHapus = false" class="flex-1 py-3 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Batal</button>
+                                            <a href="{{ url_for('hapus_jadwal', id=j.id) }}" class="flex-1 py-3 text-sm font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-xl shadow-sm hover:shadow-md transition-all">Ya, Hapus!</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="py-16 px-6 text-center whitespace-normal">
+                            <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gray-50 text-gray-300 mb-4 border border-gray-100">
+                                <i class="fas fa-folder-open text-2xl"></i>
+                            </div>
+                            <h3 class="text-base font-bold text-gray-800 mb-1">Belum Ada Jadwal</h3>
+                            <p class="text-sm text-gray-500 max-w-sm mx-auto">Mulai rapikan jadwal implementasi dengan menambahkan data klinik pertama Anda.</p>
+                            <button @click="openTambah = true" class="mt-4 text-sm font-bold text-teal-600 hover:text-teal-700 hover:underline">
+                                + Tambah Jadwal Sekarang
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <template x-teleport="body">
+        <div x-show="openModalExport" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm overflow-y-auto">
+            <div @click.away="openModalExport = false" class="bg-white p-6 sm:p-8 rounded-2xl w-full max-w-md shadow-2xl text-left transform transition-all whitespace-normal my-8">
+
+                <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">Export Laporan</h2>
+                        <p class="text-xs text-gray-500 mt-1">Sesuaikan data yang ingin Anda unduh.</p>
+                    </div>
+                    <button @click="openModalExport = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-lg"></i></button>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Status Pelaksanaan</label>
+                        <select x-model="expStatus" class="w-full p-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all bg-white">
+                            <option value="all">Semua Status</option>
+                            <option value="selesai">✅ Selesai</option>
+                            <option value="pending">⏳ Pending</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Tipe Training</label>
+                        <select x-model="expTipe" class="w-full p-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all bg-white">
+                            <option value="all">Semua Tipe</option>
+                            <option value="onsite">🏢 Onsite (Kunjungan)</option>
+                            <option value="online">💻 Online (Remote)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Dari Tanggal <span class="text-xs text-gray-400 font-normal">(opsional)</span></label>
+                            <input type="date" x-model="expTglMulai" class="w-full p-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-600">
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Sampai Tanggal <span class="text-xs text-gray-400 font-normal">(opsional)</span></label>
+                            <input type="date" x-model="expTglAkhir" class="w-full p-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-600">
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-100 flex flex-col gap-2">
+                        <button @click="processExport('xlsx'); openModalExport = false" class="w-full py-3 text-sm bg-emerald-600 text-white rounded-xl font-bold shadow-sm hover:bg-emerald-700 hover:shadow-md transition-all flex justify-center items-center gap-2">
+                            <i class="fas fa-file-excel"></i> Export Excel (.xlsx)
+                        </button>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button @click="processExport('csv'); openModalExport = false" class="w-full py-2.5 text-sm bg-blue-600 text-white rounded-xl font-bold shadow-sm hover:bg-blue-700 hover:shadow-md transition-all flex justify-center items-center gap-2">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                            <a href="#"
+   @click.prevent="window.location.href = '/export_data?format=pdf&status=' + expStatus + '&dari_tanggal=' + expTglMulai + '&sampai_tanggal=' + expTglAkhir; openModalExport = false"
+   class="w-full py-2.5 text-sm bg-gray-800 text-white rounded-xl font-bold shadow-sm hover:bg-gray-900 hover:shadow-md transition-all flex justify-center items-center gap-2 cursor-pointer">
+    <i class="fas fa-file-pdf"></i> PDF/Print
+</a>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template x-teleport="body">
+        <div x-show="openTambah" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm overflow-y-auto">
+            <div @click.away="openTambah = false" class="bg-white p-6 sm:p-8 rounded-2xl w-full max-w-md shadow-2xl text-left transform transition-all whitespace-normal my-8">
+                <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                    <h2 class="text-lg font-bold text-gray-800">Tambah Jadwal Baru</h2>
+                    <button @click="openTambah = false" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-lg"></i></button>
+                </div>
+
+                <form action="{{ url_for('tambah_jadwal') }}" method="POST" class="space-y-4">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Nama Klinik</label>
+                        <input type="text" name="nama_klinik" placeholder="Contoh: Klinik Sehat Utama" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all placeholder-gray-300">
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Paket Layanan</label>
+                        <select name="paket" required class="w-full p-3 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all">
+                            <option value="Basic">Basic</option>
+                            <option value="Standard">Standard</option>
+                            <option value="Ultimate">Ultimate</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Nama PIC</label>
+                            <input type="text" name="nama_pic" placeholder="Contoh: dr. Budi" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all placeholder-gray-300">
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1.5 block">No. WhatsApp</label>
+                            <input type="text" name="no_hp" placeholder="Contoh: 08123456789" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all placeholder-gray-300">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Tipe Pelaksanaan</label>
+                        <select name="tipe_training" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-700 bg-white">
+                            <option value="Onsite">🏢 Onsite (Kunjungan Langsung)</option>
+                            <option value="Online">💻 Online (Remote / Zoom)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Alamat / Link Meeting</label>
+                        <textarea name="alamat" rows="2" placeholder="Detail jalan atau link Gmeet/Zoom..." required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all placeholder-gray-300 resize-none"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Tanggal</label>
+                            <input type="date" x-model="tglBaru" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-600">
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Jam Training</label>
+                            <input type="time" x-model="jamBaru" required class="w-full p-3 text-sm border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all text-gray-600">
+                        </div>
+                    </div>
+                    <input type="hidden" name="tanggal_training" :value="tglBaru + 'T' + jamBaru">
+
+                    <div class="flex gap-3 pt-5 mt-2">
+                        <button type="button" @click="openTambah = false" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Batal</button>
+                        <button type="submit" class="flex-1 py-3 text-sm bg-teal-600 text-white rounded-xl font-bold shadow-sm hover:bg-teal-700 hover:shadow-md transition-all">Simpan Jadwal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+</div>
+
+<script>
+    function processExport(format) {
+        const alpineEl = document.querySelector('[x-data]');
+        const alpineData = Alpine.$data(alpineEl);
+
+        const eStatus = alpineData.expStatus;
+        const eTipe = alpineData.expTipe;
+        const eTglMulai = alpineData.expTglMulai;
+        const eTglAkhir = alpineData.expTglAkhir;
+
+        let rows = document.querySelectorAll('.row-data-item');
+        let data = [["Klinik", "Paket", "Tipe", "Alamat", "PIC", "No. HP", "Tanggal", "Waktu", "Status"]];
+
+        rows.forEach(row => {
+            let rStatus = row.getAttribute('data-status');
+            let rTipe = row.getAttribute('data-tipe');
+            let rTgl = row.getAttribute('data-tanggal');
+
+            let matchStatus = (eStatus === 'all' || eStatus === rStatus);
+            let matchTipe = (eTipe === 'all' || eTipe === rTipe);
+            let matchTgl = true;
+
+            if (eTglMulai && eTglAkhir) {
+                matchTgl = (rTgl >= eTglMulai && rTgl <= eTglAkhir);
+            } else if (eTglMulai) {
+                matchTgl = (rTgl >= eTglMulai);
+            } else if (eTglAkhir) {
+                matchTgl = (rTgl <= eTglAkhir);
+            }
+
+            if (matchStatus && matchTipe && matchTgl) {
+                data.push([
+                    row.querySelector('.val-klinik').innerText,
+                    row.querySelector('.val-paket').innerText,
+                    row.querySelector('.val-tipe').innerText,
+                    row.querySelector('.val-alamat').innerText.trim(),
+                    row.querySelector('.val-pic').innerText,
+                    row.querySelector('.val-hp').innerText.trim(),
+                    row.querySelector('.val-tgl').innerText,
+                    row.querySelector('.val-jam').innerText,
+                    row.querySelector('.val-status').innerText
+                ]);
+            }
+        });
+
+        if (data.length <= 1) {
+            alert("Tidak ada data yang sesuai dengan filter export Anda.");
+            return;
+        }
+
+        let wb = XLSX.utils.book_new();
+        let ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+        let date = new Date().toISOString().slice(0,10);
+        XLSX.writeFile(wb, `Laporan_teraMedikCE_${date}.${format}`);
+    }
+</script>
+
+{% endblock %}

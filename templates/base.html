@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImpleSched - Sistem Penjadwalan</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Plus Jakarta Sans', sans-serif; } </style>
+</head>
+<body class="bg-gray-50/50 text-gray-800 antialiased relative">
+
+    {% if current_user.is_authenticated %}
+    <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+            
+            <div class="flex justify-between items-center">
+                <a href="{{ url_for('dashboard') }}" class="flex flex-col group">
+                    <span class="font-bold text-xl tracking-tight text-teal-600 flex items-center gap-2 group-hover:text-teal-700 transition-colors">
+                        <i class="fas fa-calendar-check"></i> ImpleSched
+                    </span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-7 mt-0.5 group-hover:text-teal-600 transition-colors">
+                        SBU - teraMedikCE
+                    </span>
+                </a>
+
+                <div class="flex items-center gap-4">
+                    <div class="hidden sm:flex flex-col items-end">
+                        <span class="text-xs font-bold text-gray-800 capitalize">{{ current_user.username }}</span>
+                        <span class="text-[9px] uppercase font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100">{{ current_user.role }}</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Logout">
+                        <i class="fas fa-sign-out-alt text-lg"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-6 mt-4 pt-3 border-t border-gray-100 overflow-x-auto">
+                <a href="{{ url_for('dashboard') }}" 
+                   class="text-xs font-bold uppercase tracking-wider {{ 'text-teal-600' if request.endpoint == 'dashboard' else 'text-gray-500 hover:text-teal-600' }} transition-colors whitespace-nowrap">
+                   Dashboard
+                </a>
+                {% if current_user.role == 'superadmin' %}
+                <a href="{{ url_for('kelola_users') }}" 
+                   class="text-xs font-bold uppercase tracking-wider {{ 'text-teal-600' if request.endpoint == 'kelola_users' else 'text-gray-500 hover:text-teal-600' }} transition-colors whitespace-nowrap">
+                   Kelola Akun
+                </a>
+                {% endif %}
+            </div>
+            
+        </div>
+    </nav>
+    {% endif %}
+
+    <div class="fixed top-24 right-4 sm:right-8 z-[200] flex flex-col gap-3 pointer-events-none">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
+                   x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-10" x-transition:enter-end="opacity-100 translate-x-0"
+                   x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-10"
+                   class="pointer-events-auto flex items-center gap-4 px-5 py-4 rounded-xl shadow-2xl border-l-4 bg-white min-w-[300px] max-w-sm
+                          {{ 'border-teal-500' if category == 'success' else 'border-amber-500' if category == 'warning' else 'border-rose-500' }}">
+                  
+                  <div class="flex-shrink-0">
+                      <i class="fas text-2xl {{ 'fa-check-circle text-teal-500' if category == 'success' else 'fa-exclamation-triangle text-amber-500' if category == 'warning' else 'fa-times-circle text-rose-500' }}"></i>
+                  </div>
+                  <div class="flex-1">
+                      <p class="text-sm font-bold text-gray-800">{{ 'Berhasil!' if category == 'success' else 'Perhatian!' if category == 'warning' else 'Gagal!' }}</p>
+                      <p class="text-xs text-gray-500 mt-0.5">{{ message }}</p>
+                  </div>
+                  <button @click="show = false" class="text-gray-400 hover:text-gray-600 focus:outline-none"><i class="fas fa-times"></i></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+        {% block content %}{% endblock %}
+    </div>
+
+</body>
+</html>

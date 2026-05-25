@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div x-data="{ search: '' }" class="max-w-6xl mx-auto font-sans">
+    
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-5">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-800 tracking-tight">Manajemen Pengguna</h1>
+            <p class="text-slate-500 text-sm mt-1">Kelola hak akses akun Admin (Tim Implementasi & Marketing) dan Superadmin.</p>
+        </div>
+        <div class="relative w-full md:w-72">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i class="fas fa-search text-slate-400 text-sm"></i>
+            </div>
+            <input x-model="search" type="text" placeholder="Cari username..." 
+                   class="pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 w-full outline-none transition-all focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 placeholder-slate-400 shadow-sm">
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-100 h-fit">
+            <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
+                <i class="fas fa-user-plus text-teal-600"></i>
+                Tambah Akun Baru
+            </h2>
+            
+            <form action="{{ url_for('kelola_users') }}" method="POST" class="space-y-4">
+                <div>
+                    <label class="text-sm font-semibold text-slate-700 mb-1.5 block">Username</label>
+                    <input type="text" name="username" required placeholder="contoh: wahyu_imple" 
+                           class="w-full p-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all placeholder-slate-300">
+                </div>
+                
+                <div>
+                    <label class="text-sm font-semibold text-slate-700 mb-1.5 block">Password</label>
+                    <input type="password" name="password" required placeholder="••••••••" 
+                           class="w-full p-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all placeholder-slate-300">
+                </div>
+                
+                <div>
+                    <label class="text-sm font-semibold text-slate-700 mb-1.5 block">Hak Akses (Role)</label>
+                    <select name="role" class="w-full p-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all bg-white text-slate-600">
+                        <option value="admin">Admin (Tim Imple / Marketing)</option>
+                        <option value="superadmin">Superadmin (Akses Penuh)</option>
+                    </select>
+                </div>
+                
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-2.5 text-sm bg-teal-600 text-white rounded-xl font-bold shadow-sm hover:bg-teal-700 hover:shadow-md transition-all">
+                        Simpan Pengguna
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse whitespace-nowrap min-w-max">
+                    <thead>
+                        <tr class="bg-slate-50/50 border-b border-slate-100">
+                            <th class="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Informasi Akun</th>
+                            <th class="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Otoritas</th>
+                            <th class="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for u in users %}
+                        <tr x-data="{ openHapusUser: false, openEditUser: false }" 
+                            x-show="search === '' || '{{ u.username }}'.toLowerCase().includes(search.toLowerCase())"
+                            class="hover:bg-teal-50/30 transition-colors group">
+                            
+                            <td class="py-4 px-6">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 font-bold capitalize shadow-sm">
+                                        {{ u.username[0] }}
+                                    </div>
+                                    <span class="font-bold text-slate-800">{{ u.username }}</span>
+                                </div>
+                            </td>
+                            
+                            <td class="py-4 px-6">
+                                {% if u.role == 'superadmin' %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    <i class="fas fa-crown mr-1.5 text-indigo-500"></i> Superadmin
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                                    <i class="fas fa-user-shield mr-1.5 text-teal-500"></i> Admin System
+                                </span>
+                                {% endif %}
+                            </td>
+                            
+                            <td class="py-4 px-6 text-center">
+                                {% if u.id == current_user.id %}
+                                <span class="inline-flex items-center text-xs font-medium text-slate-400 italic bg-slate-50 px-2.5 py-1 rounded-md">
+                                    Akun Anda
+                                </span>
+                                {% else %}
+                                <div class="flex items-center justify-center gap-2">
+                                    <button @click="openEditUser = true" class="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all" title="Edit Akun">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button @click="openHapusUser = true" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus Akun">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                                {% endif %}
+                                
+                                <template x-teleport="body">
+                                    <div x-show="openEditUser" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                                        <div @click.away="openEditUser = false" class="bg-white p-6 sm:p-8 rounded-2xl w-full max-w-md shadow-2xl text-left transform transition-all whitespace-normal">
+                                            <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                                                <h2 class="text-lg font-bold text-slate-800">Edit Akun</h2>
+                                                <button @click="openEditUser = false" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times text-lg"></i></button>
+                                            </div>
+                                            
+                                            <form action="{{ url_for('edit_user', id=u.id) }}" method="POST" class="space-y-4">
+                                                <div>
+                                                    <label class="text-sm font-semibold text-slate-700 mb-1.5 block">Username</label>
+                                                    <input type="text" name="username" value="{{ u.username }}" required class="w-full p-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all">
+                                                </div>
+                                                
+                                                <div>
+                                                    <label class="text-sm font-semibold text-slate-700 mb-1.5 block">Password Baru</label>
+                                                    <input type="password" name="password" placeholder="Kosongkan jika tidak ingin diubah" class="w-full p-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all placeholder-slate-300">
+                                                    <p class="text-[10px] text-slate-400 mt-1">*Hanya isi jika ingin mengganti password lama.</p>
+                                                </div>
+                                                
+                                                <div>
+                                                    <label class="text-sm font-semibold text-slate-700 mb-1.5 block">Hak Akses (Role)</label>
+                                                    <select name="role" class="w-full p-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all bg-white text-slate-600">
+                                                        <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin (Tim Imple / Marketing)</option>
+                                                        <option value="superadmin" {% if u.role == 'superadmin' %}selected{% endif %}>Superadmin (Akses Penuh)</option>
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="flex gap-3 pt-4">
+                                                    <button type="button" @click="openEditUser = false" class="flex-1 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Batal</button>
+                                                    <button type="submit" class="flex-1 py-2.5 text-sm bg-teal-600 text-white rounded-xl font-bold shadow-sm hover:bg-teal-700 hover:shadow-md transition-all">Simpan Perubahan</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template x-teleport="body">
+                                    <div x-show="openHapusUser" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                                        <div @click.away="openHapusUser = false" class="bg-white p-6 sm:p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center transform transition-all whitespace-normal">
+                                            <div class="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-5 border-4 border-white shadow-sm">
+                                                <i class="fas fa-user-times text-2xl text-rose-500"></i>
+                                            </div>
+                                            <h2 class="text-xl font-bold text-slate-800 mb-2">Hapus Pengguna?</h2>
+                                            <p class="text-sm text-slate-500 mb-8 leading-relaxed">Anda yakin ingin menghapus akun <b class="text-slate-800">{{ u.username }}</b>? Akses pengguna ini ke sistem akan dicabut permanen.</p>
+                                            
+                                            <div class="flex gap-3">
+                                                <button @click="openHapusUser = false" class="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Batal</button>
+                                                <a href="{{ url_for('hapus_user', id=u.id) }}" class="flex-1 py-3 text-sm font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-xl shadow-sm hover:shadow-md transition-all flex justify-center items-center">Hapus Akun</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="py-12 px-6 text-center whitespace-normal">
+                                <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-50 text-slate-300 mb-3 border border-slate-100">
+                                    <i class="fas fa-users-slash text-xl"></i>
+                                </div>
+                                <h3 class="text-sm font-bold text-slate-800 mb-1">Belum Ada Tim</h3>
+                                <p class="text-sm text-slate-500">Tambahkan akun baru untuk tim implementasi atau marketing.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}
