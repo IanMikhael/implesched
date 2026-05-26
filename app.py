@@ -1,8 +1,8 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, make_response
+from flask import Flask, render_template, redirect, url_for, request, flash, make_response, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, date
 from weasyprint import HTML
 import pandas as pd
 from io import BytesIO
@@ -30,9 +30,10 @@ class Jadwal(db.Model):
     no_hp = db.Column(db.String(20), nullable=False)
     alamat = db.Column(db.Text, nullable=False)
     tipe_training = db.Column(db.String(50), nullable=False)
-    paket = db.Column(db.String(20), nullable=False, default='Basic') # Kolom paket ditambahkan
+    paket = db.Column(db.String(20), nullable=False, default='Basic')
     tanggal_training = db.Column(db.DateTime, nullable=False)
     status_selesai = db.Column(db.Boolean, default=False)
+    catatan = db.Column(db.Text, nullable=True) # Tambahan kolom catatan
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -59,41 +60,74 @@ def logout():
 @login_required
 def dashboard():
     semua_jadwal = Jadwal.query.order_by(Jadwal.tanggal_training.asc()).all()
-    hari_ini = datetime.now().date()
+    hari_ini = date.today()
+
     notif = [j for j in semua_jadwal if j.tanggal_training.date() == hari_ini and not j.status_selesai]
-    return render_template('dashboard.html', semua_jadwal=semua_jadwal, notif=notif)
+    jadwal_hari_ini = Jadwal.query.filter(db.func.date(Jadwal.tanggal_training) == hari_ini).all()
+
+    # Ambil data form dan status modal dari session (jika ada error bentrok sebelumnya)
+    form_data = session.pop('form_data', {})
+    show_tambah = session.pop('show_tambah_modal', False)
+
+    return render_template('dashboard.html',
+                           semua_jadwal=semua_jadwal,
+                           notif=notif,
+                           jadwal_hari_ini=jadwal_hari_ini,
+                           form_data=form_data,
+                           show_tambah=show_tambah)
 
 @app.route('/jadwal/tambah', methods=['GET', 'POST'])
 @login_required
 def tambah_jadwal():
     if request.method == 'POST':
-        tgl_jam = datetime.fromisoformat(request.form['tanggal_training'])
+        tgl_jam_str = request.form.get('tanggal_training')
+        tgl_jam = datetime.fromisoformat(tgl_jam_str)
+
+        # Validasi: Cek apakah sudah ada jadwal di waktu yang sama
+        bentrok = Jadwal.query.filter_by(tanggal_training=tgl_jam).first()
+        if bentrok:
+            flash(f'Gagal! Jadwal bentrok dengan klinik {bentrok.nama_klinik} pada jam tersebut.', 'danger')
+            # Simpan ketikan user ke session agar tidak hilang
+            session['form_data'] = request.form.to_dict()
+            session['show_tambah_modal'] = True
+            return redirect(url_for('dashboard'))
+
         baru = Jadwal(
             nama_klinik=request.form['nama_klinik'],
             nama_pic=request.form['nama_pic'],
             no_hp=request.form['no_hp'],
             alamat=request.form['alamat'],
             tipe_training=request.form['tipe_training'],
-            paket=request.form.get('paket', 'Basic'), # Menangkap data paket
-            tanggal_training=tgl_jam
+            paket=request.form.get('paket', 'Basic'),
+            tanggal_training=tgl_jam,
+            catatan=request.form.get('catatan', '') # Tangkap input catatan
         )
         db.session.add(baru)
         db.session.commit()
         flash('Jadwal berhasil ditambahkan!', 'success')
         return redirect(url_for('dashboard'))
-    return render_template('form_jadwal.html')
+    return redirect(url_for('dashboard'))
 
 @app.route('/jadwal/edit/<int:id>', methods=['POST'])
 @login_required
 def edit_jadwal(id):
     jadwal = Jadwal.query.get_or_404(id)
+    tgl_baru = datetime.fromisoformat(request.form['tanggal_training'])
+
+    if tgl_baru != jadwal.tanggal_training:
+        bentrok = Jadwal.query.filter_by(tanggal_training=tgl_baru).first()
+        if bentrok:
+            flash(f'Gagal update: Jadwal bentrok dengan klinik {bentrok.nama_klinik}!', 'danger')
+            return redirect(url_for('dashboard'))
+
     jadwal.nama_klinik = request.form['nama_klinik']
     jadwal.nama_pic = request.form['nama_pic']
     jadwal.no_hp = request.form['no_hp']
     jadwal.alamat = request.form['alamat']
     jadwal.tipe_training = request.form['tipe_training']
-    jadwal.paket = request.form.get('paket', jadwal.paket) # Mengupdate data paket
-    jadwal.tanggal_training = datetime.fromisoformat(request.form['tanggal_training'])
+    jadwal.paket = request.form.get('paket', jadwal.paket)
+    jadwal.tanggal_training = tgl_baru
+    jadwal.catatan = request.form.get('catatan', '') # Update data catatan
     db.session.commit()
     flash(f'Jadwal klinik {jadwal.nama_klinik} berhasil diupdate!', 'success')
     return redirect(url_for('dashboard'))
@@ -115,7 +149,7 @@ def hapus_jadwal(id):
     flash('Jadwal berhasil dihapus!', 'warning')
     return redirect(url_for('dashboard'))
 
-# ================= EXPORT DATA (STABIL) =================
+# ================= EXPORT DATA =================
 @app.route('/export_data', methods=['GET'])
 @login_required
 def export_data():
@@ -133,8 +167,8 @@ def export_data():
 
     jadwals = query.all()
 
-    # Siapkan data untuk Pandas (Excel & CSV), tambahkan Paket
-    data = [{"Klinik": j.nama_klinik, "Paket": j.paket, "PIC": j.nama_pic, "Waktu": j.tanggal_training.strftime('%Y-%m-%d %H:%M'), "Status": "Selesai" if j.status_selesai else "Terjadwal"} for j in jadwals]
+    # Tambahkan Catatan ke data yang diexport
+    data = [{"Klinik": j.nama_klinik, "Paket": j.paket, "PIC": j.nama_pic, "Waktu": j.tanggal_training.strftime('%Y-%m-%d %H:%M'), "Status": "Selesai" if j.status_selesai else "Terjadwal", "Catatan": j.catatan} for j in jadwals]
     df = pd.DataFrame(data)
 
     if format_file == 'pdf':

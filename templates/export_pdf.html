@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* Pengaturan Dasar */
+        body {
+            font-family: 'Helvetica', sans-serif;
+            color: #333;
+            line-height: 1.5;
+            padding: 20px;
+        }
+
+        /* Header Laporan dengan warna Teal */
+        .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #0f766e; padding-bottom: 10px; }
+        .header h2 { color: #0f766e; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+        .header p { color: #57534e; font-size: 13px; margin: 5px 0 0 0; font-weight: 600; }
+
+        /* Pengaturan Tabel */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            table-layout: fixed;
+        }
+        th {
+            background-color: #0f766e !important; /* Warna Teal teraMedik */
+            color: white !important;
+            padding: 10px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 10px;
+            font-size: 11px;
+            word-wrap: break-word;
+        }
+
+        /* Mencegah tabel terpotong */
+        @media print {
+            @page { size: landscape; margin: 1cm; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+        }
+
+        /* Badge Status */
+        .status-selesai { color: #065f46; font-weight: bold; }
+        .status-terjadwal { color: #b45309; font-weight: bold; }
+    </style>
+</head>
+<body onload="window.print()">
+
+    <div class="header">
+        <h2>Laporan Jadwal Training</h2>
+        <p>SBU - teraMedikCE</p>
+        <p style="font-weight: normal; color: #9ca3af; font-size: 11px;">Dicetak pada: {{ now.strftime('%d %B %Y, %H:%M') }}</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 18%;">Klinik</th>
+                <th style="width: 10%;">Paket</th>
+                <th style="width: 12%;">PIC</th>
+                <th style="width: 18%;">Tanggal & Jam</th>
+                <th style="width: 10%;">Tipe</th>
+                <th style="width: 12%;">Status</th>
+                <th style="width: 20%;">Catatan / Add-ons</th> </tr>
+        </thead>
+        <tbody>
+            {% for j in jadwals %}
+            <tr>
+                <td>{{ j.nama_klinik }}</td>
+                <td>{{ j.paket }}</td>
+                <td>{{ j.nama_pic }}</td>
+                <td>{{ j.tanggal_training.strftime('%d-%m-%Y %H:%M') }} WIB</td>
+                <td>{{ j.tipe_training }}</td>
+                <td>
+                    <span class="{{ 'status-selesai' if j.status_selesai else 'status-terjadwal' }}">
+                        {{ 'Selesai' if j.status_selesai else 'Terjadwal' }}
+                    </span>
+                </td>
+                <td>{{ j.catatan if j.catatan else '-' }}</td>
+            </tr>
+            {% endfor %}
+
+            {% if not jadwals %}
+            <tr>
+                <td colspan="7" style="text-align:center; padding: 20px; color: #6b7280;">Tidak ada data jadwal ditemukan.</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+</body>
+</html>
