@@ -1,6 +1,13 @@
+# Database
 database.db
+instance/
+
+# Python
 __pycache__/
-.DS_Store
-venv/
-*.pyc
+*.py[cod]
 .env
+.venv/
+venv/
+
+# Docker
+.docker-desktop/
