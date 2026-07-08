@@ -239,6 +239,18 @@ def hapus_user(id):
             flash('Akun berhasil dihapus!', 'warning')
     return redirect(url_for('kelola_users'))
 
+# ================= API ENDPOINTS =================
+# TODO (Team): Siapkan endpoint API untuk kalender di sini.
+# Catatan QA: Tolong gunakan prefix '/api/v1/...' untuk standarisasi REST API.
+# PERHATIAN PERFORMA: Jangan me-load semua data jadwal pakai .all()!
+# Pastikan query database difilter berdasarkan parameter tanggal 'start' dan 'end' 
+# yang dikirim otomatis oleh FullCalendar agar server tidak berat.
+@app.route('/api/v1/jadwal-kalender', methods=['GET'])
+@login_required
+def api_jadwal_kalender():
+    # Fitur ini masih di-hold, menunggu implementasi filter tanggal dari tim PKL
+    return {"status": "pending", "message": "Menunggu implementasi"}, 202
+
 def init_db():
     with app.app_context():
         db.create_all()
