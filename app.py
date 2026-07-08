@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, make_response, session
+from flask import Flask, render_template, redirect, url_for, request, flash, make_response, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -238,6 +238,25 @@ def hapus_user(id):
             db.session.commit()
             flash('Akun berhasil dihapus!', 'warning')
     return redirect(url_for('kelola_users'))
+
+# ================= API UNTUK FULLCALENDAR =================
+@app.route('/api/jadwal-training', methods=['GET'])
+@login_required
+def get_jadwal_training():
+    semua_jadwal = Jadwal.query.all()
+    data_kalender = []
+    for j in semua_jadwal:
+        # Warna: Online pakai hijau teal, Sisanya/Onsite pakai warna orange
+        warna_kelas = 'bg-teal-600 border-teal-600 text-white' if j.tipe_training == 'Online' else 'bg-orange-500 border-orange-500 text-white'
+        
+        data_kalender.append({
+            'id': j.id,
+            'title': f"{j.nama_klinik} ({j.tipe_training})", 
+            'start': j.tanggal_training.strftime('%Y-%m-%d'), # Mengelompokkan otomatis per tanggal
+            'className': warna_kelas
+        })
+        
+    return jsonify(data_kalender)
 
 def init_db():
     with app.app_context():
