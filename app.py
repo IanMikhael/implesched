@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, make_response, session
+from flask import Flask, render_template, redirect, url_for, request, flash, make_response, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -239,17 +239,24 @@ def hapus_user(id):
             flash('Akun berhasil dihapus!', 'warning')
     return redirect(url_for('kelola_users'))
 
-# ================= API ENDPOINTS =================
-# TODO (Team): Siapkan endpoint API untuk kalender di sini.
-# Catatan QA: Tolong gunakan prefix '/api/v1/...' untuk standarisasi REST API.
-# PERHATIAN PERFORMA: Jangan me-load semua data jadwal pakai .all()!
-# Pastikan query database difilter berdasarkan parameter tanggal 'start' dan 'end' 
-# yang dikirim otomatis oleh FullCalendar agar server tidak berat.
-@app.route('/api/v1/jadwal-kalender', methods=['GET'])
+# ================= API UNTUK FULLCALENDAR =================
+@app.route('/api/jadwal-training', methods=['GET'])
 @login_required
-def api_jadwal_kalender():
-    # Fitur ini masih di-hold, menunggu implementasi filter tanggal dari tim PKL
-    return {"status": "pending", "message": "Menunggu implementasi"}, 202
+def get_jadwal_training():
+    semua_jadwal = Jadwal.query.all()
+    data_kalender = []
+    for j in semua_jadwal:
+        # Warna: Online pakai hijau teal, Sisanya/Onsite pakai warna orange
+        warna_kelas = 'bg-teal-600 border-teal-600 text-white' if j.tipe_training == 'Online' else 'bg-orange-500 border-orange-500 text-white'
+        
+        data_kalender.append({
+            'id': j.id,
+            'title': f"{j.nama_klinik} ({j.tipe_training})", 
+            'start': j.tanggal_training.strftime('%Y-%m-%d'), # Mengelompokkan otomatis per tanggal
+            'className': warna_kelas
+        })
+        
+    return jsonify(data_kalender)
 
 def init_db():
     with app.app_context():
